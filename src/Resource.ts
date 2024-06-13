@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
 import { BaseRecord, BaseResource, Filter, flat, ValidationError } from 'adminjs'
-import { BaseEntity, In } from 'typeorm'
+import { BaseEntity, DataSource, EntitySchema, In, Repository } from 'typeorm'
 
 import { Property } from './Property.js'
 import { convertFilter } from './utils/filter/filter.converter.js'
@@ -8,38 +8,40 @@ import safeParseNumber from './utils/safe-parse-number.js'
 
 type ParamsType = Record<string, any>;
 
+export type ResourceType = {
+  schema: EntitySchema;
+  datasource: DataSource;
+};
+
 export class Resource extends BaseResource {
   public static validate: any
 
-  private model: typeof BaseEntity
-
   private propsObject: Record<string, Property> = {}
 
-  constructor(model: typeof BaseEntity) {
-    super(model)
+  private repository: Repository<any>
 
-    this.model = model
+  constructor(resource: ResourceType) {
+    super(resource.schema)
+    this.repository = resource.datasource.getRepository(resource.schema)
     this.propsObject = this.prepareProps()
   }
 
   public databaseName(): string {
-    return this.model.getRepository().metadata.connection.options.database as string || 'typeorm'
+    return this.getRepository().metadata.connection.options.database as string || 'typeorm'
   }
 
   public databaseType(): string {
-    return this.model.getRepository().metadata.connection.options.type || 'typeorm'
+    return (
+      this.getRepository().metadata.connection.options.type || 'typeorm'
+    )
   }
 
   public name(): string {
-    return this.model.name
+    return this.getRepository().metadata.name
   }
 
   public id(): string {
-    return this.model.name
-  }
-
-  public idName(): string {
-    return this.model.getRepository().metadata.primaryColumns[0].propertyName
+    return this.getRepository().metadata.name
   }
 
   public properties(): Array<Property> {
@@ -50,20 +52,20 @@ export class Resource extends BaseResource {
     return this.propsObject[path]
   }
 
-  public async count(filter: Filter): Promise<number> {
-    return this.model.count(({
-      where: convertFilter(filter),
-    }))
+  getRepository() {
+    return this.repository
   }
 
-  public async find(
-    filter: Filter,
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    params,
-  ): Promise<Array<BaseRecord>> {
+  public async count(filter: Filter): Promise<number> {
+    return this.getRepository().count({
+      where: convertFilter(filter),
+    })
+  }
+
+  public async find(filter: Filter, params: any): Promise<Array<BaseRecord>> {
     const { limit = 10, offset = 0, sort = {} } = params
-    const { direction, sortBy } = sort
-    const instances = await this.model.find({
+    const { direction, sortBy } = sort as any
+    const instances = await this.getRepository().find({
       where: convertFilter(filter),
       take: limit,
       skip: offset,
@@ -75,39 +77,38 @@ export class Resource extends BaseResource {
   }
 
   public async findOne(id: string | number): Promise<BaseRecord | null> {
-    const reference: any = {}
-    reference[this.idName()] = id
-
-    const instance = await this.model.findOneBy(reference)
+    const instance = await this.getRepository().findOne({ where: { id } })
     if (!instance) {
       return null
     }
     return new BaseRecord(instance, this)
   }
 
-  public async findMany(ids: Array<string | number>): Promise<Array<BaseRecord>> {
-    const reference: any = {}
-    reference[this.idName()] = In(ids)
-    const instances = await this.model.findBy(reference)
+  public async findMany(
+    ids: Array<string | number>,
+  ): Promise<Array<BaseRecord>> {
+    const instances = await this.getRepository().findBy({ id: In(ids) })
 
     return instances.map((instance) => new BaseRecord(instance, this))
   }
 
   public async create(params: Record<string, any>): Promise<ParamsType> {
-    const unflattenedParams = flat.unflatten(this.prepareParams(params)) as Record<string, any>
-    const instance = this.model.create(unflattenedParams)
+    const instance = await this.getRepository().create(
+      this.prepareParams(params),
+    )
 
     await this.validateAndSave(instance)
 
     return instance
   }
 
-  public async update(pk: string | number, params: any = {}): Promise<ParamsType> {
-    const reference: any = {}
-    reference[this.idName()] = pk
-    const instance = await this.model.findOneBy(reference)
+  public async update(
+    pk: string | number,
+    params: any = {},
+  ): Promise<ParamsType> {
+    const instance = await this.getRepository().findOne({ where: { id: pk } })
     if (instance) {
-      const preparedParams = flat.unflatten<any, any>(this.prepareParams(params))
+      const preparedParams = flat.unflatten(this.prepareParams(params))
       Object.keys(preparedParams).forEach((paramName) => {
         instance[paramName] = preparedParams[paramName]
       })
@@ -118,26 +119,24 @@ export class Resource extends BaseResource {
   }
 
   public async delete(pk: string | number): Promise<any> {
-    const reference: any = {}
-    reference[this.idName()] = pk
     try {
-      const instance = await this.model.findOneBy(reference)
-      if (instance) {
-        await instance.remove()
-      }
+      await this.getRepository().delete(pk)
     } catch (error) {
-      if (error.name === 'QueryFailedError') {
-        throw new ValidationError({}, {
-          type: 'QueryFailedError',
-          message: error.message,
-        })
+      if ((error as any).name === 'QueryFailedError') {
+        throw new ValidationError(
+          {},
+          {
+            type: 'QueryFailedError',
+            message: (error as any).message,
+          },
+        )
       }
       throw error
     }
   }
 
-  private prepareProps() {
-    const { columns } = this.model.getRepository().metadata
+  private prepareProps(): Record<string, Property> {
+    const { columns } = this.getRepository().metadata
     return columns.reduce((memo, col, index) => {
       const property = new Property(col, index)
       return {
@@ -156,7 +155,9 @@ export class Resource extends BaseResource {
       const key = property.path()
 
       // eslint-disable-next-line no-continue
-      if (param === undefined) { return }
+      if (param === undefined) {
+        return
+      }
 
       const type = property.type()
 
@@ -166,7 +167,9 @@ export class Resource extends BaseResource {
 
       if (type === 'number') {
         if (property.isArray()) {
-          preparedParams[key] = param ? param.map((p) => safeParseNumber(p)) : param
+          preparedParams[key] = param
+            ? param.map((p: any) => safeParseNumber(p))
+            : param
         } else {
           preparedParams[key] = safeParseNumber(param)
         }
@@ -176,11 +179,16 @@ export class Resource extends BaseResource {
         if (param === null) {
           preparedParams[property.column.propertyName] = null
         } else {
-          const [ref, foreignKey] = property.column.propertyPath.split('.')
-          const id = (property.column.type === Number) ? Number(param) : param
-          preparedParams[ref] = foreignKey ? {
-            [foreignKey]: id,
-          } : id
+          const [
+            ref,
+            foreignKey,
+          ] = property.column.propertyPath.split('.')
+          const id = property.column.type === Number ? Number(param) : param
+          preparedParams[ref] = foreignKey
+            ? {
+              [foreignKey]: id,
+            }
+            : id
         }
       }
     })
@@ -193,34 +201,38 @@ export class Resource extends BaseResource {
     if (Resource.validate) {
       const errors = await Resource.validate(instance)
       if (errors && errors.length) {
-        const validationErrors = errors.reduce((memo, error) => ({
-          ...memo,
-          [error.property]: {
-            type: Object.keys(error.constraints)[0],
-            message: Object.values(error.constraints)[0],
-          },
-        }), {})
+        const validationErrors = errors.reduce(
+          (memo: any, error: any) => ({
+            ...memo,
+            [error.property]: {
+              type: Object.keys(error.constraints)[0],
+              message: Object.values(error.constraints)[0],
+            },
+          }),
+          {},
+        )
         throw new ValidationError(validationErrors)
       }
     }
     try {
-      await instance.save()
+      await this.getRepository().save(instance)
     } catch (error) {
-      if (error.name === 'QueryFailedError') {
+      if ((error as any).name === 'QueryFailedError') {
         throw new ValidationError({
-          [error.column]: {
+          [(error as any).column]: {
             type: 'QueryFailedError',
-            message: error.message,
+            message: (error as any).message,
           },
         })
       }
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   public static isAdapterFor(rawResource: any): boolean {
     try {
-      return !!rawResource.getRepository().metadata
+      // eslint-disable-next-line no-console
+      const repository = rawResource.datasource.getRepository(rawResource.schema)
+      return !!repository.metadata
     } catch (e) {
       return false
     }
