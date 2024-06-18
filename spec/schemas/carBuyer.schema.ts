@@ -4,7 +4,7 @@ import { CarBuyer } from '../interfaces/carBuyer.interface'
 export const CarBuyerSchema = new EntitySchema<CarBuyer>({
   name: 'CarBuyer',
   columns: {
-    carBuyerId: {
+    id: {
       type: 'uuid',
       primary: true,
       generated: 'uuid',

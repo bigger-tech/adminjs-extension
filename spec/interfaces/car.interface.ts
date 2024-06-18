@@ -3,7 +3,7 @@ import { CarBuyer } from './carBuyer.interface'
 import { CarDealer } from './carDealer.interface'
 
 export interface Car {
-  carId: number
+  id: number
   name: string
   model: string
   age: number

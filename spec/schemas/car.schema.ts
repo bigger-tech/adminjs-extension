@@ -5,7 +5,7 @@ import { Car } from '../interfaces/car.interface.js'
 export const CarSchema = new EntitySchema<Car>({
   name: 'Car',
   columns: {
-    carId: {
+    id: {
       type: 'int',
       primary: true,
       generated: 'increment',

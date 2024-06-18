@@ -4,7 +4,7 @@ import { CarDealer } from '../interfaces/carDealer.interface'
 export const CarDealerSchema = new EntitySchema<CarDealer>({
   name: 'CarDealer',
   columns: {
-    carDealerId: {
+    id: {
       type: 'int',
       primary: true,
       generated: 'increment',

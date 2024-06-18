@@ -88,7 +88,7 @@ describe('Resource', () => {
 
       describe('#property', () => {
         it('returns selected property', () => {
-          const property = resource.property('carId')
+          const property = resource.property('id')
 
           expect(property).to.be.an.instanceOf(BaseProperty)
         })
@@ -141,13 +141,13 @@ describe('Resource', () => {
           const params = await resource.create(data)
 
           // eslint-disable-next-line no-unused-expressions
-          expect(params.carId).not.to.be.undefined
+          expect(params.id).not.to.be.undefined
         })
 
         it('stores Column with defined name property', async () => {
           const params = await resource.create(data)
           const reference: any = {}
-          reference[resource.idName()] = params.carId
+          reference[resource.idName()] = params.id
           const storedRecord: Car | null = await Car.findOneBy(reference)
 
           expect(storedRecord?.streetNumber).to.equal(data.streetNumber)
@@ -156,7 +156,7 @@ describe('Resource', () => {
         it('stores number Column with property as string', async () => {
           const params = await resource.create(data)
           const reference: any = {}
-          reference[resource.idName()] = params.carId
+          reference[resource.idName()] = params.id
           const storedRecord: Car | null = await Car.findOneBy(reference)
 
           expect(storedRecord?.stringAge).to.equal(4)
@@ -165,7 +165,7 @@ describe('Resource', () => {
         it('stores mixed type properties', async () => {
           const params = await resource.create(data)
           const reference: any = {}
-          reference[resource.idName()] = params.carId
+          reference[resource.idName()] = params.id
           const storedRecord: Car | null = await Car.findOneBy(reference)
 
           expect(storedRecord?.meta).to.deep.equal({
@@ -222,7 +222,7 @@ describe('Resource', () => {
             age: 4,
             stringAge: '4',
           })
-          record = await resource.findOne(params.carId)
+          record = await resource.findOne(params.id)
         })
 
         it('updates record name', async () => {
@@ -269,10 +269,10 @@ describe('Resource', () => {
         it('creates new resource with uuid', async () => {
           carParams = await resource.create({
             ...data,
-            carBuyerId: carBuyer.carBuyerId,
+            carBuyerId: carBuyer.id,
           })
 
-          expect(carParams.carBuyerId).to.equal(carBuyer.carBuyerId)
+          expect(carParams.carBuyerId).to.equal(carBuyer.id)
         })
       })
 
@@ -287,12 +287,12 @@ describe('Resource', () => {
         })
 
         afterEach(async () => {
-          await Car.delete(carParams.carId)
+          await Car.delete(carParams.id)
           await CarDealer.delete(carDealer.id)
         })
 
         it('deletes the resource', async () => {
-          await resource.delete(carParams.carId)
+          await resource.delete(carParams.id)
           expect(await resource.count({} as Filter)).to.eq(0)
         })
 
