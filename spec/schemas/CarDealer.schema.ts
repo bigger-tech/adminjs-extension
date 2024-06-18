@@ -5,7 +5,7 @@ export const CarDealerSchema = new EntitySchema<CarDealer>({
   name: 'CarDealer',
   columns: {
     id: {
-      type: 'int',
+      type: 'uuid',
       primary: true,
       generated: 'increment',
     },

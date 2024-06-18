@@ -6,7 +6,7 @@ export const CarSchema = new EntitySchema<Car>({
   name: 'Car',
   columns: {
     id: {
-      type: 'int',
+      type: 'uuid',
       primary: true,
       generated: 'increment',
     },
@@ -40,7 +40,7 @@ export const CarSchema = new EntitySchema<Car>({
       nullable: true,
     },
     carDealerId: {
-      type: 'int',
+      type: 'uuid',
       nullable: true,
     },
     carBuyerId: {
