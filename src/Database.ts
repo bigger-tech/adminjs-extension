@@ -13,9 +13,7 @@ export class Database extends BaseDatabase {
     // eslint-disable-next-line no-restricted-syntax
     for (const entityMetadata of this.dataSource.entityMetadatas) {
       resources.push(
-        new Resource(
-          (entityMetadata as unknown) as ResourceType,
-        ),
+        new Resource(entityMetadata.target as ResourceType),
       )
     }
 
