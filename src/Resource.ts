@@ -8,10 +8,12 @@ import safeParseNumber from './utils/safe-parse-number.js'
 
 type ParamsType = Record<string, any>;
 
-export type ResourceType = {
+type SchemaResourceType = {
   schema: EntitySchema;
-  datasource: DataSource;
+  dataSource: DataSource;
 };
+
+export type ResourceType = SchemaResourceType | typeof BaseEntity;
 
 export class Resource extends BaseResource {
   public static validate: any
@@ -21,8 +23,14 @@ export class Resource extends BaseResource {
   private repository: Repository<any>
 
   constructor(resource: ResourceType) {
-    super(resource.schema)
-    this.repository = resource.datasource.getRepository(resource.schema)
+    if ('getRepository' in resource) {
+      super(resource)
+      this.repository = resource.getRepository()
+    } else {
+      const { schema, dataSource } = resource
+      super(schema)
+      this.repository = dataSource.getRepository(schema)
+    }
     this.propsObject = this.prepareProps()
   }
 
@@ -42,6 +50,10 @@ export class Resource extends BaseResource {
 
   public id(): string {
     return this.getRepository().metadata.name
+  }
+
+  public idName(): string {
+    return this.getRepository().metadata.primaryColumns[0].propertyName
   }
 
   public properties(): Array<Property> {
@@ -77,7 +89,10 @@ export class Resource extends BaseResource {
   }
 
   public async findOne(id: string | number): Promise<BaseRecord | null> {
-    const instance = await this.getRepository().findOne({ where: { id } })
+    const reference: any = {}
+    reference[this.idName()] = id
+
+    const instance = await this.getRepository().findOne({ where: reference })
     if (!instance) {
       return null
     }
@@ -87,15 +102,17 @@ export class Resource extends BaseResource {
   public async findMany(
     ids: Array<string | number>,
   ): Promise<Array<BaseRecord>> {
-    const instances = await this.getRepository().findBy({ id: In(ids) })
+    const reference: any = {}
+    reference[this.idName()] = In(ids)
+
+    const instances = await this.getRepository().findBy({ where: reference })
 
     return instances.map((instance) => new BaseRecord(instance, this))
   }
 
   public async create(params: Record<string, any>): Promise<ParamsType> {
-    const instance = await this.getRepository().create(
-      this.prepareParams(params),
-    )
+    const unflattenedParams = flat.unflatten(this.prepareParams(params)) as Record<string, any>
+    const instance = await this.getRepository().create(unflattenedParams)
 
     await this.validateAndSave(instance)
 
@@ -106,9 +123,12 @@ export class Resource extends BaseResource {
     pk: string | number,
     params: any = {},
   ): Promise<ParamsType> {
-    const instance = await this.getRepository().findOne({ where: { id: pk } })
+    const reference: any = {}
+    reference[this.idName()] = pk
+
+    const instance = await this.getRepository().findOne({ where: reference })
     if (instance) {
-      const preparedParams = flat.unflatten(this.prepareParams(params))
+      const preparedParams = flat.unflatten<any, any>(this.prepareParams(params))
       Object.keys(preparedParams).forEach((paramName) => {
         instance[paramName] = preparedParams[paramName]
       })
@@ -119,15 +139,18 @@ export class Resource extends BaseResource {
   }
 
   public async delete(pk: string | number): Promise<any> {
+    const reference: any = {}
+    reference[this.idName()] = pk
+
     try {
-      await this.getRepository().delete(pk)
+      await this.getRepository().delete(reference)
     } catch (error) {
-      if ((error as any).name === 'QueryFailedError') {
+      if (error.name === 'QueryFailedError') {
         throw new ValidationError(
           {},
           {
             type: 'QueryFailedError',
-            message: (error as any).message,
+            message: error.message,
           },
         )
       }
@@ -217,11 +240,11 @@ export class Resource extends BaseResource {
     try {
       await this.getRepository().save(instance)
     } catch (error) {
-      if ((error as any).name === 'QueryFailedError') {
+      if (error.name === 'QueryFailedError') {
         throw new ValidationError({
-          [(error as any).column]: {
+          [error.column]: {
             type: 'QueryFailedError',
-            message: (error as any).message,
+            message: error.message,
           },
         })
       }
@@ -230,8 +253,8 @@ export class Resource extends BaseResource {
 
   public static isAdapterFor(rawResource: any): boolean {
     try {
-      // eslint-disable-next-line no-console
-      const repository = rawResource.datasource.getRepository(rawResource.schema)
+      const repository = (rawResource.getRepository && rawResource.getRepository())
+        || rawResource.dataSource.getRepository(rawResource.schema)
       return !!repository.metadata
     } catch (e) {
       return false
