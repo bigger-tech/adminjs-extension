@@ -1,24 +1,26 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "outDir": "./build",
-    "target": "es6",
-    "esModuleInterop": true,
     "jsx": "react",
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "noImplicitThis": true,
-    "moduleResolution": "node",
-    "module": "commonjs",
-    "types": ["cypress"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "declaration": false,
+    "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "strictPropertyInitialization": false,
-    "sourceMap": true,
+    "allowSyntheticDefaultImports": true,
+    "allowJs": true,
+    "target": "esnext",
+    "sourceMap": false,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "incremental": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "paths": {
-      "react": ["node_modules/@types/react"],
-      "adminjs": ["node_modules/adminjs"]
+      "@adminjs/typeorm": [
+        "../lib"
+      ],
     }
   },
   "include": [
