@@ -27,7 +27,8 @@
     "check:all": "yarn lint && yarn test && yarn build",
     "typeorm": "typeorm-ts-node-esm -d \"./spec/utils/test-data-source.ts\"",
     "migrate": "yarn typeorm migration:run",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "prepare": "yarn run clean && yarn run build"
   },
   "repository": {
     "type": "git",
