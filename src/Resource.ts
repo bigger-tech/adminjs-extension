@@ -105,7 +105,7 @@ export class Resource extends BaseResource {
     const reference: any = {}
     reference[this.idName()] = In(ids)
 
-    const instances = await this.getRepository().findBy({ where: reference })
+    const instances = await this.getRepository().findBy(reference)
 
     return instances.map((instance) => new BaseRecord(instance, this))
   }
